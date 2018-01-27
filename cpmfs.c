@@ -689,195 +689,183 @@ void cpmglob(int optin, int argc, char * const argv[], struct cpmInode *root, in
 /*}}}*/
 
 /* superblock management */
-/* diskdefReadSuper   -- read super block from diskdefs file     */ /*{{{*/
-static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
+/* parseLine   -- parse one line from diskdef    */ /*{{{*/
+static int parseLine(struct cpmSuperBlock *d, char const *format, char *line, int ln)
 {
-  char line[256];
-  int ln;
-  FILE *fp;
-  int insideDef=0,found=0;
+  int argc;
+  char *argv[2];
+  static int insideDef=0;
+  static int found = 0;
+  char *s;
 
-  d->libdskGeometry[0] = '\0';
-  d->type=0;
-  if ((fp=fopen("diskdefs","r"))==(FILE*)0 && (fp=fopen(DISKDEFS,"r"))==(FILE*)0)
+  /* Allow inline comments preceded by ; or # */
+  s = strchr(line, '#');
+  if (s) strcpy(s, "\n");
+  s = strchr(line, ';');
+  if (s) strcpy(s, "\n");
+  if (line[0] == '\n') return 0;
+
+  for (argc=0; argc<1 && (argv[argc]=strtok(argc ? (char*)0 : line," \t\n")); ++argc);
+  if ((argv[argc]=strtok((char*)0,"\n"))!=(char*)0) ++argc;
+  if (insideDef)
   {
-    fprintf(stderr,"%s: Neither `diskdefs' nor `" DISKDEFS "' could be opened.\n",cmd);
-    exit(1);
-  }
-  ln=1;
-  while (fgets(line,sizeof(line),fp)!=(char*)0)
-  {
-    int argc;
-    char *argv[2];
-    char *s;
-
-    /* Allow inline comments preceded by ; or # */
-    s = strchr(line, '#');
-    if (s) strcpy(s, "\n");
-    s = strchr(line, ';');
-    if (s) strcpy(s, "\n");
-
-    for (argc=0; argc<1 && (argv[argc]=strtok(argc ? (char*)0 : line," \t\n")); ++argc);
-    if ((argv[argc]=strtok((char*)0,"\n"))!=(char*)0) ++argc;
-    if (insideDef)
+    if (argc==1 && strcmp(argv[0],"end")==0)
     {
-      if (argc==1 && strcmp(argv[0],"end")==0)
+      insideDef=0;
+      d->size=(d->secLength*d->sectrk*(d->tracks-d->boottrk))/d->blksiz;
+      if (d->extents==0) d->extents=((d->size>=256 ? 8 : 16)*d->blksiz)/16384;
+      if (d->extents==0) d->extents=1;
+      if (found) return 1;
+    }
+    else if (argc==2)
+    {
+      if (strcmp(argv[0],"seclen")==0) d->secLength=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"tracks")==0) d->tracks=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"sectrk")==0) d->sectrk=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"blocksize")==0)
       {
-        insideDef=0;
-        d->size=(d->secLength*d->sectrk*(d->tracks-d->boottrk))/d->blksiz;
-        if (d->extents==0) d->extents=((d->size>=256 ? 8 : 16)*d->blksiz)/16384;
-        if (d->extents==0) d->extents=1;
-        if (found) break;
-      }
-      else if (argc==2)
-      {
-        if (strcmp(argv[0],"seclen")==0) d->secLength=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"tracks")==0) d->tracks=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"sectrk")==0) d->sectrk=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"blocksize")==0)
+        d->blksiz=strtol(argv[1],(char**)0,0);
+        if (d->blksiz <= 0)
         {
-          d->blksiz=strtol(argv[1],(char**)0,0);
-          if (d->blksiz <= 0)
-          {
-            fprintf(stderr,"%s: invalid blocksize `%s' in line %d\n",cmd,argv[1],ln);
-            exit(1);
-          }
+          fprintf(stderr,"%s: invalid blocksize `%s' in line %d\n",cmd,argv[1],ln);
+          exit(1);
         }
-        else if (strcmp(argv[0],"maxdir")==0) d->maxdir=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"dirblks")==0) d->dirblks=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"skew")==0) d->skew=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"skewtab")==0)
+      }
+      else if (strcmp(argv[0],"maxdir")==0) d->maxdir=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"dirblks")==0) d->dirblks=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"skew")==0) d->skew=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"skewtab")==0)
+      {
+        int pass,sectors;
+
+        for (pass=0; pass<2; ++pass)
         {
-          int pass,sectors;
-
-          for (pass=0; pass<2; ++pass)
+          sectors=0;
+          for (s=argv[1]; *s; )
           {
-            sectors=0;
-            for (s=argv[1]; *s; )
-            {
-              int phys;
-              char *end;
+            int phys;
+            char *end;
 
-              phys=strtol(s,&end,10);
-              if (pass==1) d->skewtab[sectors]=phys;
-              if (end==s)
+            phys=strtol(s,&end,10);
+            if (pass==1) d->skewtab[sectors]=phys;
+            if (end==s)
+            {
+              fprintf(stderr,"%s: invalid skewtab `%s' at `%s' in line %d\n",cmd,argv[1],s,ln);
+              exit(1);
+            }
+            s=end;
+            ++sectors;
+            if (*s==',') ++s;
+          }
+          if (pass==0) d->skewtab=malloc(sizeof(int)*sectors);
+        }
+      }
+      else if (strcmp(argv[0],"boottrk")==0) d->boottrk=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"offset")==0)  
+      {
+        off_t val;
+        unsigned int multiplier;
+        char *endptr;
+
+        errno=0;
+        multiplier=1;
+        val = strtol(argv[1],&endptr,10);
+        if ((errno==ERANGE && val==LONG_MAX)||(errno!=0 && val<=0))
+        {
+          fprintf(stderr,"%s: invalid offset value `%s' (%s) in line %d\n",cmd,argv[1],strerror(errno),ln);
+          exit(1);
+        }
+        if (endptr==argv[1])
+        {
+          fprintf(stderr,"%s: offset value `%s' is not a number in line %d\n",cmd,argv[1],ln);
+          exit(1);
+        }
+        if (*endptr!='\0')
+        {
+          /* Have a unit specifier */
+          switch (toupper(*endptr))
+          {
+            case 'K':
+              multiplier=1024;
+              break;
+            case 'M':
+              multiplier=1024*1024;
+              break;
+            case 'T':
+              if (d->sectrk<0||d->tracks<0||d->secLength<0)
               {
-                fprintf(stderr,"%s: invalid skewtab `%s' at `%s' in line %d\n",cmd,argv[1],s,ln);
+                fprintf(stderr,"%s: offset must be specified after sectrk, tracks and secLength in line %d\n",cmd,ln);
                 exit(1);
               }
-              s=end;
-              ++sectors;
-              if (*s==',') ++s;
-            }
-            if (pass==0) d->skewtab=malloc(sizeof(int)*sectors);
-          }
-        }
-        else if (strcmp(argv[0],"boottrk")==0) d->boottrk=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"offset")==0)  
-        {
-          off_t val;
-          unsigned int multiplier;
-          char *endptr;
-
-          errno=0;
-          multiplier=1;
-          val = strtol(argv[1],&endptr,10);
-          if ((errno==ERANGE && val==LONG_MAX)||(errno!=0 && val<=0))
-          {
-            fprintf(stderr,"%s: invalid offset value `%s' (%s) in line %d\n",cmd,argv[1],strerror(errno),ln);
-            exit(1);
-          }
-          if (endptr==argv[1])
-          {
-            fprintf(stderr,"%s: offset value `%s' is not a number in line %d\n",cmd,argv[1],ln);
-            exit(1);
-          }
-          if (*endptr!='\0')
-          {
-            /* Have a unit specifier */
-            switch (toupper(*endptr))
-            {
-              case 'K':
-                multiplier=1024;
-                break;
-              case 'M':
-                multiplier=1024*1024;
-                break;
-              case 'T':
-                if (d->sectrk<0||d->tracks<0||d->secLength<0)
-                {
-                  fprintf(stderr,"%s: offset must be specified after sectrk, tracks and secLength in line %d\n",cmd,ln);
-                  exit(1);
-                }
-                multiplier=d->sectrk*d->secLength;
-                break;
-              case 'S':
-                if (d->sectrk<0||d->tracks<0||d->secLength<0)
-                {
-                  fprintf(stderr,"%s: offset must be specified after sectrk, tracks and secLength in line %d\n",cmd,ln);
-                  exit(1);
-                }
-                multiplier=d->secLength;
-                break;
-              default:
-                fprintf(stderr,"%s: unknown unit specifier `%c' in line %d\n",cmd,*endptr,ln);
+              multiplier=d->sectrk*d->secLength;
+              break;
+            case 'S':
+              if (d->sectrk<0||d->tracks<0||d->secLength<0)
+              {
+                fprintf(stderr,"%s: offset must be specified after sectrk, tracks and secLength in line %d\n",cmd,ln);
                 exit(1);
-            }
+              }
+              multiplier=d->secLength;
+              break;
+            default:
+              fprintf(stderr,"%s: unknown unit specifier `%c' in line %d\n",cmd,*endptr,ln);
+              exit(1);
           }
-          if (val*multiplier>INT_MAX)
-          {
-            fprintf(stderr,"%s: effective offset is out of range in line %d\n",cmd,ln);
-            exit(1);
-          }
-          d->offset=val*multiplier;
         }
-        else if (strcmp(argv[0],"logicalextents")==0) d->extents=strtol(argv[1],(char**)0,0);
-        else if (strcmp(argv[0],"os")==0)
+        if (val*multiplier>INT_MAX)
         {
-          if      (strcmp(argv[1],"2.2"  )==0) d->type|=CPMFS_DR22;
-          else if (strcmp(argv[1],"3"    )==0) d->type|=CPMFS_DR3;
-          else if (strcmp(argv[1],"isx"  )==0) d->type|=CPMFS_ISX;
-          else if (strcmp(argv[1],"p2dos")==0) d->type|=CPMFS_P2DOS;
-          else if (strcmp(argv[1],"zsys" )==0) d->type|=CPMFS_ZSYS;
-          else 
-          {
-            fprintf(stderr, "%s: invalid OS type `%s' in line %d\n",cmd,argv[1],ln);
-            exit(1);
-          }
+          fprintf(stderr,"%s: effective offset is out of range in line %d\n",cmd,ln);
+          exit(1);
         }
-	else if (strcmp(argv[0], "libdsk:format")==0)
-        {
-          strncpy(d->libdskGeometry, argv[1], sizeof(d->libdskGeometry) - 1);
-          d->libdskGeometry[sizeof(d->libdskGeometry) - 1] = 0;
-        }
+        d->offset=val*multiplier;
       }
-      else if (argc>0 && argv[0][0]!='#' && argv[0][0]!=';')
+      else if (strcmp(argv[0],"logicalextents")==0) d->extents=strtol(argv[1],(char**)0,0);
+      else if (strcmp(argv[0],"os")==0)
       {
-        fprintf(stderr,"%s: invalid keyword `%s' in line %d\n",cmd,argv[0],ln);
-        exit(1);
+        if      (strcmp(argv[1],"2.2"  )==0) d->type|=CPMFS_DR22;
+        else if (strcmp(argv[1],"3"    )==0) d->type|=CPMFS_DR3;
+        else if (strcmp(argv[1],"isx"  )==0) d->type|=CPMFS_ISX;
+        else if (strcmp(argv[1],"p2dos")==0) d->type|=CPMFS_P2DOS;
+        else if (strcmp(argv[1],"zsys" )==0) d->type|=CPMFS_ZSYS;
+        else 
+        {
+          fprintf(stderr, "%s: invalid OS type `%s' in line %d\n",cmd,argv[1],ln);
+          exit(1);
+        }
+      }
+	else if (strcmp(argv[0], "libdsk:format")==0)
+      {
+        strncpy(d->libdskGeometry, argv[1], sizeof(d->libdskGeometry) - 1);
+        d->libdskGeometry[sizeof(d->libdskGeometry) - 1] = 0;
       }
     }
-    else if (argc==2 && strcmp(argv[0],"diskdef")==0)
+    else if (argc>0 && argv[0][0]!='#' && argv[0][0]!=';')
     {
-      insideDef=1;
-      d->skew=1;
-      d->extents=0;
-      d->type=CPMFS_DR22;
-      d->skewtab=(int*)0;
-      d->offset=0;
-      d->blksiz=d->boottrk=d->secLength=d->sectrk=d->tracks=d->maxdir=-1;
-      d->dirblks=0;
-      d->libdskGeometry[0] = 0;
-      if (strcmp(argv[1],format)==0) found=1;
+      fprintf(stderr,"%s: invalid keyword `%s' in line %d\n",cmd,argv[0],ln);
+      exit(1);
     }
-    ++ln;
   }
-  fclose(fp);
-  if (!found)
+  else if (argc > 0 && strcmp(argv[0],"diskdef")==0 &&
+           (argc==2 || (argc==1 && format==NULL)))
   {
-    fprintf(stderr,"%s: unknown format %s\n",cmd,format);
-    exit(1);
+    insideDef=1;
+    d->skew=1;
+    d->extents=0;
+    d->type=CPMFS_DR22;
+    d->skewtab=(int*)0;
+    d->offset=0;
+    d->blksiz=d->boottrk=d->secLength=d->sectrk=d->tracks=d->maxdir=-1;
+    d->dirblks=0;
+    d->libdskGeometry[0] = 0;
+    if (format == NULL) found=1;
+    else if (strcmp(argv[1],format)==0) found=1;
   }
+  return 0;
+}
+/*}}}*/
+/* checkDiskdef   -- ensure diskdefs is valid     */ /*{{{*/
+static void checkDiskdef(struct cpmSuperBlock *d)
+{
   if (d->boottrk<0)
   {
     fprintf(stderr, "%s: boottrk parameter invalid or missing from diskdef\n",cmd);
@@ -908,6 +896,54 @@ static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
     fprintf(stderr, "%s: maxdir parameter invalid or missing from diskdef\n",cmd);
     exit(1);
   }
+}
+/*}}}*/
+/* inlineReadSuper   -- read super block from diskdefs string     */ /*{{{*/
+static int inlineReadSuper(struct cpmSuperBlock *d, const char *format)
+{
+  int linec;
+  char *linev[16];
+  int l;
+
+  char *fmt = strdup(format);
+  for (linec=0; linec<15 && (linev[linec]=strtok(linec ? (char*)0 : fmt,"!\n")); ++linec);
+  if ((linev[linec]=strtok((char*)0,"!\n"))!=(char*)0) ++linec;
+  for (l = 0; l < linec; ++l) {
+      parseLine(d, NULL, linev[l], l+1);
+  }
+  checkDiskdef(d); /* does not return if error */
+  return 0;
+}
+/*}}}*/
+/* diskdefReadSuper   -- read super block from diskdefs file     */ /*{{{*/
+static int diskdefReadSuper(struct cpmSuperBlock *d, const char *format)
+{
+  char line[256];
+  int ln;
+  FILE *fp;
+  int found=0;
+
+  d->libdskGeometry[0] = '\0';
+  d->type=0;
+  if ((fp=fopen("diskdefs","r"))==(FILE*)0 && (fp=fopen(DISKDEFS,"r"))==(FILE*)0)
+  {
+    fprintf(stderr,"%s: Neither `diskdefs' nor `" DISKDEFS "' could be opened.\n",cmd);
+    exit(1);
+  }
+  ln=1;
+  while (fgets(line,sizeof(line),fp)!=(char*)0)
+  {
+    found = parseLine(d, format, line, ln);
+    ++ln;
+    if (found) break;
+  }
+  fclose(fp);
+  if (!found)
+  {
+    fprintf(stderr,"%s: unknown format %s\n",cmd,format);
+    exit(1);
+  }
+  checkDiskdef(d); /* does not return if error */
   return 0;
 }
 /*}}}*/
@@ -1024,6 +1060,7 @@ int cpmReadSuper(struct cpmSuperBlock *d, struct cpmInode *root, char const *for
   assert(s_ifreg);
 
   if (strcmp(format,"amstrad")==0) amsReadSuper(d,format);
+  else if (strncmp(format,"diskdef",7)==0) inlineReadSuper(d,format);
   else diskdefReadSuper(d,format);
 
   assert(d->boottrk>=0);
