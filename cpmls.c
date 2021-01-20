@@ -31,7 +31,9 @@ static int namecmp(const void *a, const void *b)
 static void olddir(char **dirent, int entries)
 {
   int i,j,k,l,user,announce;
+  int ent;
 
+  ent=0;
   announce=0;
   for (user=0; user<32; ++user)
   {
@@ -39,6 +41,7 @@ static void olddir(char **dirent, int entries)
     {
       if (dirent[i][0]=='0'+user/10 && dirent[i][1]=='0'+user%10)
       {
+        ++ent;
         if (announce==1)
         {
           printf("User %d\n",user);
@@ -63,7 +66,7 @@ static void olddir(char **dirent, int entries)
 
     announce=1;
   }
-  if (entries==0) printf("No files\n");
+  if (ent==0) printf("No file\n");
 }
 /*}}}*/
 /* oldddir -- old style long output */ /*{{{*/
