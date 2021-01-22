@@ -7,10 +7,6 @@
 #include <string.h>
 
 #include "device.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 
 static const char *lookupFormat(DSK_GEOMETRY *geom, const char *name)

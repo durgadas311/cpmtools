@@ -10,10 +10,6 @@
 
 #include "getopt_.h"
 #include "cpmfs.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 
 /* variables */ /*{{{*/
@@ -379,7 +375,11 @@ int main(int argc, char *argv[])
 
   if (usage)
   {
+#ifdef HAVE_LIBDSK_H
     fprintf(stderr,"Usage: %s [-f format] [-T libdsk-type] [-d|-D|-F|-A|[-l][-c][-i]] image [file ...]\n",cmd);
+#else
+    fprintf(stderr,"Usage: %s [-f format] [-d|-D|-F|-A|[-l][-c][-i]] image [file ...]\n",cmd);
+#endif
     exit(1);
   }
   /*}}}*/

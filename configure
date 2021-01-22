@@ -694,7 +694,6 @@ enable_option_checking
 with_diskdefs
 with_defformat
 with_libdsk
-with_dmalloc
 enable_largefile
 '
       ac_precious_vars='build_alias
@@ -1325,7 +1324,6 @@ Optional Packages:
   --with-diskdefs         Specify diskdefs location
   --with-defformat        Specify default format (ibm-3740)
   --with-libdsk           Specify path to libdsk library
-  --with-dmalloc          Specify path to dmalloc library
 
 Some influential environment variables:
   CC          C compiler command
@@ -2272,10 +2270,11 @@ IFS=$ac_save_IFS
 case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
-VERSION=2.21
-UPDATED='Jan 23, 2019'
+VERSION=2.22
+UPDATED='Dec 13, 2020'
 
 DEVICE="posix"
+TERM="curses"
 
 if test "$prefix" = NONE
 then
@@ -3329,7 +3328,6 @@ case $host_os in
 	  * ) MINGW32=no;;
 esac
 
-DEVICE="posix"
 
 DISKDEFS='${datarootdir}/diskdefs'
 
@@ -3366,16 +3364,6 @@ if test "${with_libdsk+set}" = set; then :
   withval=$with_libdsk; LIBDSK="$withval"
 else
   LIBDSK=""
-fi
-
-
-# Check whether --with-dmalloc was given.
-if test "${with_dmalloc+set}" = set; then :
-  withval=$with_dmalloc; CPPFLAGS="$CPPFLAGS -I$with_dmalloc/include"
-                 LDFLAGS="$LDFLAGS -L$with_dmalloc/lib"
-                 LIBS="$LIBS -ldmalloc"
-                 $as_echo "#define USE_DMALLOC 1" >>confdefs.h
-
 fi
 
 
@@ -3956,7 +3944,7 @@ $as_echo "#define STDC_HEADERS 1" >>confdefs.h
 
 fi
 
-for ac_header in fcntl.h sys/types.h sys/stat.h limits.h unistd.h
+for ac_header in fcntl.h sys/types.h sys/stat.h limits.h unistd.h sys/utime.h utime.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
@@ -4091,6 +4079,17 @@ else
 
 cat >>confdefs.h <<_ACEOF
 #define size_t unsigned int
+_ACEOF
+
+fi
+
+ac_fn_c_check_type "$LINENO" "ssize_t" "ac_cv_type_ssize_t" "$ac_includes_default"
+if test "x$ac_cv_type_ssize_t" = xyes; then :
+
+else
+
+cat >>confdefs.h <<_ACEOF
+#define ssize_t int
 _ACEOF
 
 fi

@@ -10,10 +10,6 @@
 
 #include "getopt_.h"
 #include "cpmfs.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 /* #defines */ /*{{{*/
 #ifndef O_BINARY

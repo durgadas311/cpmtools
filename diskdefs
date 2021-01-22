@@ -324,6 +324,7 @@ diskdef kpii
   sectrk 10
   blocksize 1024
   maxdir 64
+  dirblks 2
   skew 0
   boottrk 1
   os 2.2
@@ -337,6 +338,7 @@ diskdef kpiv
   sectrk 10
   blocksize 2048
   maxdir 64
+  dirblks 2
   skew 0
   boottrk 1
   os 2.2
@@ -378,12 +380,7 @@ diskdef fdd3000_2
   skew 5
 end
 
-############################
-# GdR/Robotron scp disks
-############################
-
-# robotron PC1715 SCP 185k (40*1* 5,1024 6 OFS 2k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=1024 cyl=40 sect=5 head=1 dtr=1 fm=0
+# Robotron 1715
 diskdef 1715
   seclen 1024
   tracks 40
@@ -395,8 +392,7 @@ diskdef 1715
   os 2.2
 end
 
-# robotron PC1715 SCP3 760k (80*2* 5,1024 8 OFS 4k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=1024 cyl=80 sect=5 head=2 dtr=1 fm=0
+# Robotron 1715 with SCP3
 diskdef 17153
   seclen 1024
   tracks 160
@@ -408,8 +404,7 @@ diskdef 17153
   os 3
 end
 
-# robotron PC1715 SCP 624k (80*2* 16,256 8 OFS 4k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=256 cyl=80 sect=16 head=2 dtr=1 fm=0
+#DDR
 diskdef scp624
   seclen 256
   tracks 160
@@ -417,13 +412,10 @@ diskdef scp624
   blocksize 2048
   maxdir 128
   skew 0
-  boottrk 4
+  boottrk 2
   os 2.2
-  libdsk:format scp640
 end
 
-# robotron PC1715 SCP 640k (80*2* 16,256 0 OFS 4k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=256 cyl=80 sect=16 head=2 dtr=1 fm=0
 diskdef scp640
   seclen 256
   tracks 160
@@ -433,11 +425,8 @@ diskdef scp640
   skew 0
   boottrk 0
   os 2.2
-  libdsk:format scp640
 end
 
-# robotron PC1715 SCP 780k (80*2* 5,1024 8 OFS 4k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=1024 cyl=80 sect=5 head=2 dtr=1 fm=0
 diskdef scp780
   seclen 1024
   tracks 160
@@ -445,13 +434,10 @@ diskdef scp780
   blocksize 2048
   maxdir 128
   skew 0
-  boottrk 4
+  boottrk 2
   os 2.2
-  libdsk:format scp800
 end
 
-# robotron PC1715 SCP 800k (80*2* 5,1024 0 OFS 4k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=1024 cyl=80 sect=5 head=2 dtr=1 fm=0
 diskdef scp800
   seclen 1024
   tracks 160
@@ -461,11 +447,8 @@ diskdef scp800
   skew 0
   boottrk 0
   os 2.2
-  libdsk:format scp800
 end 
 
-# robotron Z9001 800k (80*2* 5,1024 0 OFS 6k DIR) 5.25"
-# setfdprm /dev/fd1 ds dd ssize=1024 cyl=80 sect=5 head=2 dtr=1 fm=0
 diskdef z9001
   seclen 1024
   tracks 160
@@ -718,20 +701,7 @@ diskdef lobo3
   os 3
 end
 
-# DEC VT-180 'Robin' (CP/M); works with disks available on Bitsavers (http://bitsavers.org/pdf/dec/terminal/vt180/dskimage/)
-diskdef vt180
-   seclen 512
-   tracks 40
-   sectrk 9
-   blocksize 1024
-   maxdir 64
-   skew 2
-   os 2.2
-   boottrk 2
-   logicalextents 1
-end
-
-# DEC Rainbow-100 CP/M disks; also DEC PRO CP/M RZ50 DZ format (Perhaps only 79 tracks should be used?)
+# PRO CP/M RZ50 DZ format (Perhaps only 79 tracks should be used?)
 diskdef dec_pro
   seclen 512
   tracks 80
@@ -1873,5 +1843,103 @@ diskdef mds-sd
   maxdir 64
   skew 0
   boottrk 2
+  os 2.2
+end
+
+# CF card in PCMCIA slot on NC200 with cpmish
+diskdef nc200cf
+  seclen 512
+  tracks 256
+  sectrk 256
+  blocksize 16384
+  maxdir 512
+  boottrk 0
+  os 2.2
+end
+
+# Floppy image on NC200 with cpmish
+diskdef nc200cpm
+  seclen 512
+  tracks 80
+  sectrk 18
+  blocksize 2048
+  maxdir 128
+  boottrk 2
+  os 2.2
+end
+
+# ZCN format drive partitions in nc100em's nc100.card
+# use this for a bootable A: drive
+# (assumes ZCN system is 12k, which it has been for years)
+diskdef zcna_boot
+  seclen 1024
+  tracks 256
+  sectrk 1
+  blocksize 1024
+  maxdir 64
+  skew 0
+  boottrk 13
+  os 2.2
+end
+
+# use this for a non-bootable A: drive
+diskdef zcna_nonboot
+  seclen 1024
+  tracks 256
+  sectrk 1
+  blocksize 1024
+  maxdir 64
+  skew 0
+  boottrk 1
+  os 2.2
+end
+
+# ZCN b/c/d all assumed to be non-bootable
+diskdef zcnb
+  seclen 1024
+  tracks 256
+  sectrk 1
+  blocksize 1024
+  maxdir 64
+  skew 0
+  boottrk 1
+  os 2.2
+  offset 256KB
+end
+
+diskdef zcnc
+  seclen 1024
+  tracks 256
+  sectrk 1
+  blocksize 1024
+  maxdir 64
+  skew 0
+  boottrk 1
+  os 2.2
+  offset 512KB
+end
+
+diskdef zcnd
+  seclen 1024
+  tracks 256
+  sectrk 1
+  blocksize 1024
+  maxdir 64
+  skew 0
+  boottrk 1
+  os 2.2
+  offset 768KB
+end
+
+# Hewlett-Packard HP9000-200 - 70-track SS drive that emulates a
+# 35 track DSDD 48 tpi 5.25"
+diskdef HP25
+  seclen 256
+  tracks 66
+  sectrk 16
+  blocksize 1024
+  maxdir 128
+  skew 0
+  boottrk 3
   os 2.2
 end

@@ -12,10 +12,6 @@
 
 #include "cpmdir.h"
 #include "cpmfs.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 /* #defines */ /*{{{*/
 #undef CPMFS_DEBUG
@@ -46,13 +42,12 @@ maxdir+2 the optional disk label. */
 #define PASSWD_RECLEN 24
 /*}}}*/
 
-extern char **environ;
-const char *boo;
+char const *boo;
 static mode_t s_ifdir=1;
 static mode_t s_ifreg=1;
 
 /* memcpy7            -- Copy string, leaving 8th bit alone      */ /*{{{*/
-static void memcpy7(char *dest, const char *src, int count)
+static void memcpy7(char *dest, char const *src, int count)
 {
   while (count--)
   {
@@ -65,11 +60,11 @@ static void memcpy7(char *dest, const char *src, int count)
 
 /* file name conversions */ 
 /* splitFilename      -- split file name into name and extension */ /*{{{*/
-static int splitFilename(const char *fullname, int type, char *name, char *ext, int *user) 
+static int splitFilename(char const *fullname, int type, char *name, char *ext, int *user) 
 {
   int i,j;
 
-  assert(fullname!=(const char*)0);
+  assert(fullname!=(char const *)0);
   assert(name!=(char*)0);
   assert(ext!=(char*)0);
   assert(user!=(int*)0);
@@ -112,14 +107,14 @@ static int splitFilename(const char *fullname, int type, char *name, char *ext, 
 }
 /*}}}*/
 /* isMatching         -- do two file names match?                */ /*{{{*/
-static int isMatching(int user1, const char *name1, const char *ext1, int user2, const char *name2, const char *ext2)
+static int isMatching(int user1, char const *name1, char const *ext1, int user2, char const *name2, char const *ext2)
 {
   int i;
 
-  assert(name1!=(const char*)0);
-  assert(ext1!=(const char*)0);
-  assert(name2!=(const char*)0);
-  assert(ext2!=(const char*)0);
+  assert(name1!=(char const *)0);
+  assert(ext1!=(char const *)0);
+  assert(name2!=(char const *)0);
+  assert(ext2!=(char const *)0);
   if (user1!=user2) return 0;
   for (i=0; i<8; ++i) if ((name1[i]&0x7f)!=(name2[i]&0x7f)) return 0;
   for (i=0; i<3; ++i) if ((ext1[i]&0x7f)!=(ext2[i]&0x7f)) return 0;
@@ -267,7 +262,7 @@ static void alvInit(const struct cpmSuperBlock *d)
   /* A directory may cover more blocks than an int may hold bits,
    * so a loop is needed.
    */
-  for (block=0; block<(d->maxdir*32+d->blksiz-1)/d->blksiz; ++block)
+  for (block=0; block<d->dirblks; ++block)
   {
     offset = block/INTBITS;
     d->alv[offset] |= (1<<(block%INTBITS));
@@ -319,6 +314,9 @@ static int allocBlock(const struct cpmSuperBlock *drive)
           boo="device full";
           return -1;
         }
+#ifdef CPMFS_DEBUG
+        fprintf(stderr,"allocBlock: allocate data block %d\n",block);
+#endif
         drive->alv[i] |= (1<<j);
         return block;
       }
@@ -339,6 +337,10 @@ static int readBlock(const struct cpmSuperBlock *d, int blockno, char *buffer, i
   assert(d);
   assert(blockno>=0);
   assert(buffer);
+
+#ifdef CPMFS_DEBUG
+  fprintf(stderr,"readBlock: read block %d %d-%d\n",blockno,start,end);
+#endif
   if (blockno>=d->size)
   {
     boo="Attempting to access block beyond end of disk";
@@ -349,14 +351,20 @@ static int readBlock(const struct cpmSuperBlock *d, int blockno, char *buffer, i
   track=(blockno*(d->blksiz/d->secLength)+ d->sectrk*d->boottrk)/d->sectrk;
   for (counter=0; counter<=end; ++counter)
   {
-    const char *err;
+    char const *err;
 
     assert(d->skewtab[sect]>=0);
     assert(d->skewtab[sect]<d->sectrk);
-    if (counter>=start && (err=Device_readSector(&d->dev,track,d->skewtab[sect],buffer+(d->secLength*counter))))
+    if (counter>=start)
     {
-      boo=err;
-      return -1;
+#ifdef CPMFS_DEBUG
+      fprintf(stderr,"readBlock: read sector %d/%d\n",d->skewtab[sect],track);
+#endif
+      if ((err=Device_readSector(&d->dev,track,d->skewtab[sect],buffer+(d->secLength*counter))))
+      {
+        boo=err;
+        return -1;
+      }
     }
     ++sect;
     if (sect>=d->sectrk) 
@@ -369,19 +377,23 @@ static int readBlock(const struct cpmSuperBlock *d, int blockno, char *buffer, i
 }
 /*}}}*/
 /* writeBlock         -- write a (partial) block                 */ /*{{{*/
-static int writeBlock(const struct cpmSuperBlock *d, int blockno, const char *buffer, int start, int end)
+static int writeBlock(const struct cpmSuperBlock *d, int blockno, char const *buffer, int start, int end)
 {
   int sect, track, counter;
 
   assert(blockno>=0);
   assert(blockno<d->size);
-  assert(buffer!=(const char*)0);
+  assert(buffer!=(char const *)0);
+
+#ifdef CPMFS_DEBUG
+  fprintf(stderr,"writeBlock: write block %d %d-%d\n",blockno,start,end);
+#endif
   if (end < 0) end=d->blksiz/d->secLength-1;
   sect = (blockno*(d->blksiz/d->secLength))%d->sectrk;
   track = (blockno*(d->blksiz/d->secLength))/d->sectrk+d->boottrk;
   for (counter = 0; counter<=end; ++counter)
   {
-    const char *err;
+    char const *err;
 
     if (counter>=start && (err=Device_writeSector(&d->dev,track,d->skewtab[sect],buffer+(d->secLength*counter))))
     {
@@ -401,7 +413,7 @@ static int writeBlock(const struct cpmSuperBlock *d, int blockno, const char *bu
 
 /* directory management */
 /* findFileExtent     -- find first/next extent for a file       */ /*{{{*/
-static int findFileExtent(const struct cpmSuperBlock *sb, int user, const char *name, const char *ext, int start, int extno)
+static int findFileExtent(const struct cpmSuperBlock *sb, int user, char const *name, char const *ext, int start, int extno)
 {
   boo="file already exists";
   for (; start<sb->maxdir; ++start)
@@ -592,7 +604,7 @@ static void readDsStamps(struct cpmInode *i, int lowestExt)
 /*}}}*/
 
 /* match              -- match filename against a pattern        */ /*{{{*/
-static int recmatch(const char *a, const char *pattern)
+static int recmatch(char const *a, char const *pattern)
 {
   int first=1;
 
@@ -621,10 +633,10 @@ static int recmatch(const char *a, const char *pattern)
   return (*pattern=='\0' && *a=='\0');
 }
 
-int match(const char *a, const char *pattern) 
+int match(char const *a, char const *pattern) 
 {
   int user;
-  char pat[255];
+  char pat[257];
 
   assert(a);
   assert(pattern);
@@ -676,12 +688,27 @@ void cpmglob(int optin, int argc, char * const argv[], struct cpmInode *root, in
 }
 /*}}}*/
 
-static int parseLine(struct cpmSuperBlock *d, const char *format, char *line, int ln)
+/* superblock management */
+/* diskdefReadSuper   -- read super block from diskdefs file     */ /*{{{*/
+static int diskdefReadSuper(struct cpmSuperBlock *d, char const *format)
 {
+  char line[256];
+  int ln;
+  FILE *fp;
+  int insideDef=0,found=0;
+
+  d->libdskGeometry[0] = '\0';
+  d->type=0;
+  if ((fp=fopen("diskdefs","r"))==(FILE*)0 && (fp=fopen(DISKDEFS,"r"))==(FILE*)0)
+  {
+    fprintf(stderr,"%s: Neither `diskdefs' nor `" DISKDEFS "' could be opened.\n",cmd);
+    exit(1);
+  }
+  ln=1;
+  while (fgets(line,sizeof(line),fp)!=(char*)0)
+  {
     int argc;
     char *argv[2];
-    static int insideDef=0;
-    static int found = 0;
     char *s;
 
     /* Allow inline comments preceded by ; or # */
@@ -689,7 +716,6 @@ static int parseLine(struct cpmSuperBlock *d, const char *format, char *line, in
     if (s) strcpy(s, "\n");
     s = strchr(line, ';');
     if (s) strcpy(s, "\n");
-    if (line[0] == '\n') return 0;
 
     for (argc=0; argc<1 && (argv[argc]=strtok(argc ? (char*)0 : line," \t\n")); ++argc);
     if ((argv[argc]=strtok((char*)0,"\n"))!=(char*)0) ++argc;
@@ -701,7 +727,7 @@ static int parseLine(struct cpmSuperBlock *d, const char *format, char *line, in
         d->size=(d->secLength*d->sectrk*(d->tracks-d->boottrk))/d->blksiz;
         if (d->extents==0) d->extents=((d->size>=256 ? 8 : 16)*d->blksiz)/16384;
         if (d->extents==0) d->extents=1;
-        if (found) return 1;
+        if (found) break;
       }
       else if (argc==2)
       {
@@ -718,6 +744,7 @@ static int parseLine(struct cpmSuperBlock *d, const char *format, char *line, in
           }
         }
         else if (strcmp(argv[0],"maxdir")==0) d->maxdir=strtol(argv[1],(char**)0,0);
+        else if (strcmp(argv[0],"dirblks")==0) d->dirblks=strtol(argv[1],(char**)0,0);
         else if (strcmp(argv[0],"skew")==0) d->skew=strtol(argv[1],(char**)0,0);
         else if (strcmp(argv[0],"skewtab")==0)
         {
@@ -830,8 +857,7 @@ static int parseLine(struct cpmSuperBlock *d, const char *format, char *line, in
         exit(1);
       }
     }
-    else if (argc > 0 && strcmp(argv[0],"diskdef")==0 &&
-             (argc==2 || (argc==1 && format==NULL)))
+    else if (argc==2 && strcmp(argv[0],"diskdef")==0)
     {
       insideDef=1;
       d->skew=1;
@@ -839,52 +865,12 @@ static int parseLine(struct cpmSuperBlock *d, const char *format, char *line, in
       d->type=CPMFS_DR22;
       d->skewtab=(int*)0;
       d->offset=0;
-      d->blksiz=d->boottrk=d->secLength=d->sectrk=d->tracks=-1;
+      d->blksiz=d->boottrk=d->secLength=d->sectrk=d->tracks=d->maxdir=-1;
+      d->dirblks=0;
       d->libdskGeometry[0] = 0;
-      if (format == NULL) found=1;
-      else if (strcmp(argv[1],format)==0) found=1;
+      if (strcmp(argv[1],format)==0) found=1;
     }
-    return 0;
-}
-
-/* superblock management */
-/* inlineReadSuper   -- read super block from diskdefs string     */ /*{{{*/
-static int inlineReadSuper(struct cpmSuperBlock *d, const char *format)
-{
-    int linec;
-    char *linev[16];
-    int l;
-
-    char *fmt = strdup(format);
-    for (linec=0; linec<15 && (linev[linec]=strtok(linec ? (char*)0 : fmt,";\n")); ++linec);
-    if ((linev[linec]=strtok((char*)0,";\n"))!=(char*)0) ++linec;
-    for (l = 0; l < linec; ++l) {
-        parseLine(d, NULL, linev[l], l+1);
-    }
-    return 0;
-}
-
-/* superblock management */
-/* diskdefReadSuper   -- read super block from diskdefs file     */ /*{{{*/
-static int diskdefReadSuper(struct cpmSuperBlock *d, const char *format)
-{
-  char line[256];
-  int ln;
-  FILE *fp;
-  int found=0;
-
-  d->libdskGeometry[0] = '\0';
-  d->type=0;
-  if ((fp=fopen("diskdefs","r"))==(FILE*)0 && (fp=fopen(DISKDEFS,"r"))==(FILE*)0)
-  {
-    fprintf(stderr,"%s: Neither `diskdefs' nor `" DISKDEFS "' could be opened.\n",cmd);
-    exit(1);
-  }
-  ln=1;
-  while (fgets(line,sizeof(line),fp)!=(char*)0)
-  {
-    found = parseLine(d, format, line, ln);
-    if (found) break;
+    ++ln;
   }
   fclose(fp);
   if (!found)
@@ -917,15 +903,19 @@ static int diskdefReadSuper(struct cpmSuperBlock *d, const char *format)
     fprintf(stderr, "%s: blocksize parameter invalid or missing from diskdef\n",cmd);
     exit(1);
   }
-  ++ln;
+  if (d->maxdir<0)
+  {
+    fprintf(stderr, "%s: maxdir parameter invalid or missing from diskdef\n",cmd);
+    exit(1);
+  }
   return 0;
 }
 /*}}}*/
 /* amsReadSuper       -- read super block from amstrad disk      */ /*{{{*/
-static int amsReadSuper(struct cpmSuperBlock *d, const char *format)
+static int amsReadSuper(struct cpmSuperBlock *d, char const *format)
 {
   unsigned char boot_sector[512], *boot_spec;
-  const char *err;
+  char const *err;
 
   Device_setGeometry(&d->dev,512,9,40,0,"pcw180");
   if ((err=Device_readSector(&d->dev, 0, 0, (char *)boot_sector)))
@@ -966,6 +956,7 @@ static int amsReadSuper(struct cpmSuperBlock *d, const char *format)
   d->sectrk    = boot_spec[3];
   d->blksiz    = 128 << boot_spec[6];
   d->maxdir    = (d->blksiz / 32) * boot_spec[7];
+  d->dirblks   = 0;
   d->skew      = 1; /* Amstrads skew at the controller level */
   d->skewtab   = (int*)0;
   d->boottrk   = boot_spec[5];
@@ -1025,15 +1016,30 @@ int cpmCheckDs(struct cpmSuperBlock *sb)
 }
 /*}}}*/
 /* cpmReadSuper       -- get DPB and init in-core data for drive */ /*{{{*/
-int cpmReadSuper(struct cpmSuperBlock *d, struct cpmInode *root, const char *format)
+int cpmReadSuper(struct cpmSuperBlock *d, struct cpmInode *root, char const *format)
 {
   while (s_ifdir && !S_ISDIR(s_ifdir)) s_ifdir<<=1;
   assert(s_ifdir);
   while (s_ifreg && !S_ISREG(s_ifreg)) s_ifreg<<=1;
   assert(s_ifreg);
+
   if (strcmp(format,"amstrad")==0) amsReadSuper(d,format);
-  else if (strncmp(format,"diskdef",7)==0) inlineReadSuper(d,format);
   else diskdefReadSuper(d,format);
+
+  assert(d->boottrk>=0);
+  assert(d->secLength>0);
+  assert(d->sectrk>0);
+  assert(d->tracks>0);
+  assert(d->blksiz>0);
+  assert(d->maxdir>0);
+  assert(d->dirblks>=0);
+
+  if (d->dirblks==0)
+  {
+    /* optional field, compute based on directory size */
+    d->dirblks=(d->maxdir*32+(d->blksiz-1))/d->blksiz;
+  }
+
   boo = Device_setGeometry(&d->dev,d->secLength,d->sectrk,d->tracks,d->offset,d->libdskGeometry);
   if (boo) return -1;
 
@@ -1249,6 +1255,7 @@ int cpmSync(struct cpmSuperBlock *sb)
 void cpmUmount(struct cpmSuperBlock *sb)
 {
   cpmSync(sb);
+  Device_close(&sb->dev);
   if (sb->type&CPMFS_DS_DATES) free(sb->ds);
   free(sb->alv);
   free(sb->skewtab);
@@ -1258,7 +1265,7 @@ void cpmUmount(struct cpmSuperBlock *sb)
 /*}}}*/
 
 /* cpmNamei           -- map name to inode                       */ /*{{{*/
-int cpmNamei(const struct cpmInode *dir, const char *filename, struct cpmInode *i)
+int cpmNamei(const struct cpmInode *dir, char const *filename, struct cpmInode *i)
 {
   /* variables */ /*{{{*/
   int user;
@@ -1267,6 +1274,9 @@ int cpmNamei(const struct cpmInode *dir, const char *filename, struct cpmInode *
   int protectMode=0;
   /*}}}*/
 
+#ifdef CPMFS_DEBUG
+  fprintf(stderr,"cpmNamei: map %s\n", filename);
+#endif
   if (!S_ISDIR(dir->mode))
   {
     boo="No such file";
@@ -1398,7 +1408,7 @@ void cpmStatFS(const struct cpmInode *ino, struct cpmStatFS *buf)
   buf->f_bsize=d->blksiz;
   buf->f_blocks=d->size;
   buf->f_bfree=0;
-  buf->f_bused=-(d->maxdir*32+d->blksiz-1)/d->blksiz;
+  buf->f_bused=-(d->dirblks);
   for (i=0; i<d->alvSize; ++i)
   {
     int temp,j;
@@ -1431,7 +1441,7 @@ void cpmStatFS(const struct cpmInode *ino, struct cpmStatFS *buf)
 }
 /*}}}*/
 /* cpmUnlink          -- unlink                                  */ /*{{{*/
-int cpmUnlink(const struct cpmInode *dir, const char *fname)
+int cpmUnlink(const struct cpmInode *dir, char const *fname)
 {
   int user;
   char name[8],extension[3];
@@ -1457,7 +1467,7 @@ int cpmUnlink(const struct cpmInode *dir, const char *fname)
 }
 /*}}}*/
 /* cpmRename          -- rename                                  */ /*{{{*/
-int cpmRename(const struct cpmInode *dir, const char *old, const char *new)
+int cpmRename(const struct cpmInode *dir, char const *old, char const *new)
 {
   struct cpmSuperBlock *drive;
   int extent;
@@ -1644,7 +1654,7 @@ int cpmOpen(struct cpmInode *ino, struct cpmFile *file, mode_t mode)
 }
 /*}}}*/
 /* cpmRead            -- read                                    */ /*{{{*/
-int cpmRead(struct cpmFile *file, char *buf, int count)
+ssize_t cpmRead(struct cpmFile *file, char *buf, size_t count)
 {
   int findext=1,findblock=1,extent=-1,block=-1,extentno=-1,got=0,nextblockpos=-1,nextextpos=-1;
   int blocksize=file->ino->sb->blksiz;
@@ -1654,7 +1664,7 @@ int cpmRead(struct cpmFile *file, char *buf, int count)
   if (extcap>16384) extcap=16384*file->ino->sb->extents;
   if (file->ino->ino==(ino_t)file->ino->sb->maxdir+1) /* [passwd] */ /*{{{*/
   {
-    if ((file->pos+count)>file->ino->size) count=file->ino->size-file->pos;
+    if ((file->pos+(off_t)count)>file->ino->size) count=file->ino->size-file->pos;
     if (count) memcpy(buf,file->ino->sb->passwd+file->pos,count);
     file->pos+=count;
 #ifdef CPMFS_DEBUG
@@ -1665,7 +1675,7 @@ int cpmRead(struct cpmFile *file, char *buf, int count)
   /*}}}*/
   else if (file->ino->ino==(ino_t)file->ino->sb->maxdir+2) /* [label] */ /*{{{*/
   {
-    if ((file->pos+count)>file->ino->size) count=file->ino->size-file->pos;
+    if ((file->pos+(off_t)count)>file->ino->size) count=file->ino->size-file->pos;
     if (count) memcpy(buf,file->ino->sb->label+file->pos,count);
     file->pos+=count;
 #ifdef CPMFS_DEBUG
@@ -1703,7 +1713,7 @@ int cpmRead(struct cpmFile *file, char *buf, int count)
         else
         {
           start=(file->pos%blocksize)/file->ino->sb->secLength;
-          end=((file->pos%blocksize+count)>blocksize ? blocksize-1 : (file->pos%blocksize+count-1))/file->ino->sb->secLength;
+          end=((file->pos%blocksize+(off_t)count)>blocksize ? blocksize-1 : (int)((file->pos%blocksize+count-1))/file->ino->sb->secLength);
           if (readBlock(file->ino->sb,block,buffer,start,end)==-1)
           {
             if (got==0) got=-1;
@@ -1730,7 +1740,7 @@ int cpmRead(struct cpmFile *file, char *buf, int count)
 }
 /*}}}*/
 /* cpmWrite           -- write                                   */ /*{{{*/
-int cpmWrite(struct cpmFile *file, const char *buf, int count)
+ssize_t cpmWrite(struct cpmFile *file, char const *buf, size_t count)
 {
   int findext=1,findblock=-1,extent=-1,extentno=-1,got=0,nextblockpos=-1,nextextpos=-1;
   int blocksize=file->ino->sb->blksiz;
@@ -1774,6 +1784,11 @@ int cpmWrite(struct cpmFile *file, const char *buf, int count)
         file->ino->sb->dir[extent].pointers[ptr]=block&0xff;
         if (file->ino->sb->size>=256) file->ino->sb->dir[extent].pointers[ptr+1]=(block>>8)&0xff;
         start=0;
+        /* By setting end to the end of the block and not the end
+         * of the currently written data, the whole block gets
+         * wiped from the disk, which is slow, but convenient in
+         * case of sparse files.
+         */
         end=(blocksize-1)/file->ino->sb->secLength;
         memset(buffer,0,blocksize);
         time(&file->ino->ctime);
@@ -1784,7 +1799,7 @@ int cpmWrite(struct cpmFile *file, const char *buf, int count)
       else /* read existing block and set start/end to cover modified parts */ /*{{{*/
       {
         start=(file->pos%blocksize)/file->ino->sb->secLength;
-        end=((file->pos%blocksize+count)>blocksize ? blocksize-1 : (file->pos%blocksize+count-1))/file->ino->sb->secLength;
+        end=((int)(file->pos%blocksize+count)>=blocksize ? blocksize-1 : (int)(file->pos%blocksize+count-1))/file->ino->sb->secLength;
         if (file->pos%file->ino->sb->secLength)
         {
           if (readBlock(file->ino->sb,block,buffer,start,start)==-1)
@@ -1793,9 +1808,9 @@ int cpmWrite(struct cpmFile *file, const char *buf, int count)
             break;
           }
         }
-        if (end!=start && (file->pos+count-1)<blocksize)
+        if (end!=start && (int)(file->pos%blocksize+count)<blocksize && (file->pos+count)%file->ino->sb->secLength)
         {
-          if (readBlock(file->ino->sb,block,buffer+end*file->ino->sb->secLength,end,end)==-1)
+          if (readBlock(file->ino->sb,block,buffer,end,end)==-1)
           {
             if (got==0) got=-1;
             break;
@@ -1817,6 +1832,11 @@ int cpmWrite(struct cpmFile *file, const char *buf, int count)
       ++got;
       --count;
     }
+    /* In case the data only fills part of a sector, the rest is
+     * still initialized: A new block was cleared and the boundaries
+     * of an existing block were read.
+     */
+
     (void)writeBlock(file->ino->sb,block,buffer,start,end);
     time(&file->ino->mtime);
     if (file->ino->sb->size<256) for (last=15; last>=0; --last)
@@ -1862,7 +1882,7 @@ int cpmClose(struct cpmFile *file)
 }
 /*}}}*/
 /* cpmCreat           -- creat                                   */ /*{{{*/
-int cpmCreat(struct cpmInode *dir, const char *fname, struct cpmInode *ino, mode_t mode)
+int cpmCreat(struct cpmInode *dir, char const *fname, struct cpmInode *ino, mode_t mode)
 {
   int user;
   char name[8],extension[3];

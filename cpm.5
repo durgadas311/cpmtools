@@ -1,27 +1,11 @@
 .\" Believe it or not, reportedly there are nroffs which do not know \(en
 .if n .ds en -
 .if t .ds en \(en
-.TH CPM 5 "Jan 23, 2019" "CP/M tools" "File formats"
+.TH CPM 5 "Dec 13, 2020" "CP/M tools" "File formats"
 .SH NAME \"{{{roff}}}\"{{{
 cpm \- CP/M disk and file system format
 .\"}}}
 .SH DESCRIPTION \"{{{
-.SS "Format descrptions" \"{{{
-CP/M format may be specified by either the format name in a
-diskdefs file, or by including the entire "diskdef" format.
-For example:
-.RS
-.sp
--f name
-.br
--f `cat mydiskdef`
-.br
--f "diskdef; seclen 512; tracks 512; ... end"
-.sp
-.RE
-A single diskdef must not begin with a comment, in other words it must
-begin with "diskdef". The name is not required.
-.\"}}}
 .SS "Characteristic sizes" \"{{{
 Each CP/M disk format is described by the following specific sizes:
 .RS
@@ -82,6 +66,12 @@ convenience upper and lower case are both accepted and only the first
 letter is significant, thus 2KB, 8MB, 1000trk and 16sec are valid
 values.  The \fBoffset\fP must appear subsequent to track, sector and sector
 length values for the sector and track units to work.
+.LP
+Note that it is possible to reserve space between the directory and
+the beginning of data.  Although typically data follows the directory,
+some systems used this to store extra data instead of using more
+system tracks (see the fields \fBALV0\fP and \fBALV1\fP in the
+DPB).
 .\"}}}
 .SS "Directory entries" \"{{{
 The directory is a sequence of directory entries (also called extents),
@@ -98,9 +88,10 @@ Al	Al	Al	Al	Al	Al	Al	Al	Al	Al	Al	Al	Al	Al	Al	Al
 \fBSt\fP is the status; possible values are:
 .RS
 .sp
-0\*(en15: used for file, status is the user number
+0\*(en15: used for file, status is the user number.  CP/M 2.2 only documents
+0\*(en15 and CCP and PIP only offer those, but the BDOS allows to use 0\*(en31.
 .br
-16\*(en31: used for file, status is the user number (P2DOS)
+16\*(en31: used for file, status is the user number (P2DOS, CP/M 2.2)
 or used for password extent (CP/M 3 or higher)
 .br
 32: disc label

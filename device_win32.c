@@ -8,10 +8,6 @@
 
 #include "cpmdir.h"
 #include "cpmfs.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 /* types */ /*{{{*/
 #define PHYSICAL_SECTOR_1       1 /* First physical sector */
@@ -266,6 +262,10 @@ static int w32mode(int mode) /*{{{*/
 /* Device_open           -- Open an image file                      */ /*{{{*/
 const char *Device_open(struct Device *sb, const char *filename, int mode, const char *deviceOpts)
 {
+    if (deviceOpts != NULL)
+    {
+        return "Win32 driver accepts no options (build compiled without libdsk)";
+    }
     /* Windows 95/NT: floppy drives using handles */ 
     if (strlen(filename) == 2 && filename[1] == ':')    /* Drive name */
     {

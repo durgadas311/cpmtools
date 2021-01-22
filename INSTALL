@@ -7,7 +7,7 @@ Options for "./configure" include:
                   Use LibDsk to access raw files, .DSK files, MYZ80 
                         files and Unix/Windows floppy drives.  This library
                         is available at:
-                        http://www.seasip.demon.co.uk/Unix/LibDsk/
+                        https://www.seasip.info/Unix/LibDsk/
   --with-dmalloc
 		  Use the dmalloc library
   --disable-floppy
@@ -15,16 +15,18 @@ Options for "./configure" include:
                   contains drivers for raw files, .DSK files and MYZ80 files.
 
   All the cpmtools that use LibDsk have an extra option: -T <type>. This 
-  sets the drive type used by LibDsk, and is one of:
+  sets the drive type used by LibDsk; available values include:
 
     "floppy" - The computer's floppy drive (only supported on Linux and Win32)
     "raw"    - Raw file (or the floppy drive on other Unix systems)
     "dsk"    - .DSK file
     "myz80"  - MYZ80 hard drive file
 
+    See the libdsk documentation for a full list.
+
     It will normally only be necessary to include "-T" when you are 
   accessing a MYZ80 file, because LibDsk can detect the other file types 
-  automatically. "-T" options are ignored if LibDsk is not being used.
+  automatically. "-T" options are not accepted if LibDsk is not being used.
 
 
 Basic Installation

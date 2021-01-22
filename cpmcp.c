@@ -9,14 +9,10 @@
 #include <string.h>
 #include <limits.h>
 #include <stdlib.h>
-#include <utime.h>
+#include <time.h>
 
 #include "getopt_.h"
 #include "cpmfs.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 
 const char cmd[]="cpmcp";
@@ -60,7 +56,7 @@ static int cpmToUnix(const struct cpmInode *root, const char *src, const char *d
     {
       int crpending=0;
       int ohno=0;
-      int res;
+      ssize_t res;
       char buf[4096];
 
       while ((res=cpmRead(&file,buf,sizeof(buf)))>0)
@@ -259,15 +255,15 @@ int main(int argc, char *argv[])
           cpmOpen(&ino,&file,O_WRONLY);
           do
           {
-            unsigned int j;
+            ssize_t j;
 
-            for (j=0; j<(sizeof(buf)/2) && (c=getc(ufp))!=EOF; ++j)
+            for (j=0; j<((ssize_t)sizeof(buf)/2) && (c=getc(ufp))!=EOF; ++j)
             {
               if (text && c=='\n') buf[j++]='\r';
               buf[j]=c;
             }
             if (text && c==EOF) buf[j++]='\032';
-            if (cpmWrite(&file,buf,j)!=(ssize_t)j)
+            if (cpmWrite(&file,buf,j)!=j)
             {
               fprintf(stderr,"%s: can not write %s: %s\n",cmd,dest,boo);
               ohno=1;

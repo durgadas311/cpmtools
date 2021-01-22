@@ -8,15 +8,15 @@
 #include <string.h>
 
 #include "device.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 
 /* Device_open           -- Open an image file                      */ /*{{{*/
 const char *Device_open(struct Device *this, const char *filename, int mode, const char *deviceOpts)
 {
+  if (deviceOpts != NULL)
+  {
+    return "POSIX driver accepts no options (build compiled without libdsk)";
+  }
   this->fd=open(filename,mode);
   this->opened=(this->fd==-1?0:1);
   return ((this->fd==-1)?strerror(errno):(const char*)0);
@@ -60,7 +60,11 @@ const char *Device_readSector(const struct Device *this, int track, int sector, 
     {
       return strerror(errno);
     }
-    else memset(buf+res,0,this->secLength-res); /* hit end of disk image */
+    else
+{
+printf("len %d\n",this->secLength-res);
+ memset(buf+res,0,this->secLength-res); /* hit end of disk image */
+}
   }
   return (const char*)0;
 }

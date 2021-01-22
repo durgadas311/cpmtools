@@ -1,10 +1,6 @@
 #ifndef CPMFS_H
 #define CPMFS_H
 
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <utime.h>
-
 #ifdef _WIN32
     #include <windows.h>
     #include <winioctl.h>
@@ -37,13 +33,10 @@
     #endif
 
     #include <io.h>            /* For open(), lseek() etc. */
-    #ifndef HAVE_MODE_T
-    typedef int mode_t;
-    #endif
 #endif
 
 #ifdef __cplusplus
-        extern "C" {
+extern "C" {
 #endif
 
 #include "device.h"
@@ -142,6 +135,7 @@ struct cpmSuperBlock
   int sectrk;
   int blksiz;
   int maxdir;
+  int dirblks;
   int skew;
   int boottrk;
   off_t offset;
@@ -177,10 +171,10 @@ struct cpmStatFS
   long f_namelen;
 };
 
-extern const char cmd[];
-extern const char *boo;
+extern char const cmd[];
+extern char const *boo;
 
-int match(const char *a, const char *pattern);
+int match(char const *a, char const *pattern);
 void cpmglob(int opti, int argc, char * const argv[], struct cpmInode *root, int *gargc, char ***gargv);
 
 int cpmReadSuper(struct cpmSuperBlock *drive, struct cpmInode *root, const char *format);
@@ -195,8 +189,8 @@ int cpmAttrGet(struct cpmInode *ino, cpm_attr_t *attrib);
 int cpmAttrSet(struct cpmInode *ino, cpm_attr_t attrib);
 int cpmChmod(struct cpmInode *ino, mode_t mode);
 int cpmOpen(struct cpmInode *ino, struct cpmFile *file, mode_t mode);
-int cpmRead(struct cpmFile *file, char *buf, int count);
-int cpmWrite(struct cpmFile *file, const char *buf, int count);
+ssize_t cpmRead(struct cpmFile *file, char *buf, size_t count);
+ssize_t cpmWrite(struct cpmFile *file, const char *buf, size_t count);
 int cpmClose(struct cpmFile *file);
 int cpmCreat(struct cpmInode *dir, const char *fname, struct cpmInode *ino, mode_t mode);
 void cpmUtime(struct cpmInode *ino, struct utimbuf *times);
@@ -205,7 +199,7 @@ void cpmUmount(struct cpmSuperBlock *sb);
 int cpmCheckDs(struct cpmSuperBlock *sb);
 
 #ifdef __cplusplus
-	}
+}
 #endif
 
 #endif

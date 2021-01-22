@@ -16,11 +16,11 @@ struct Device
   int tracks;
   int sectrk;
   off_t offset;
-#if HAVE_LIBDSK_H
+#ifdef HAVE_LIBDSK_H
   DSK_PDRIVER   dev;
   DSK_GEOMETRY geom; 
 #endif
-#if HAVE_WINDOWS_H
+#ifdef HAVE_WINDOWS_H
   int drvtype;
   HANDLE hdisk;
 #endif

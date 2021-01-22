@@ -20,6 +20,7 @@ A diskdefs file consists of one or more entries of the format:
   \fBsectrk\fP \fIcount\fP
   \fBblocksize\fP \fIsize\fP
   \fBmaxdir\fP \fIcount\fP
+  [\fBdirblks\fP \fIcount\fP]
   \fBboottrk\fP \fInumber\fP
   [\fBskew\fP \fInumber\fP]
   [\fBskewtab\fP \fIsector\fP[\fB,\fP\fIsector\fP]...]
@@ -33,7 +34,12 @@ A diskdefs file consists of one or more entries of the format:
 .PP
 \fBskew\fP and \fBskewtab\fP must only be used exclusively.
 .PP
-Comments are marked with a leading hash or semicolon and extend to the end of the line.
+Comments are marked with a leading hash or semicolon and extend to the
+end of the line.
+.PP
+It is possible to reserve space after the directory beyond \fBmaxdir\fP
+using an inflated DPB ALV0.  If the format makes use of that,
+\fBdirblks\fP must be set.
 .\"}}}
 .SH "SEE ALSO" \"{{{
 .IR cpm (5)

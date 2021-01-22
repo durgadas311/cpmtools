@@ -8,7 +8,8 @@ device_libdsk.o: device_libdsk.c config.h device.h
 device_posix.o: device_posix.c config.h device.h
 device_win32.o: device_win32.c config.h cpmdir.h cpmfs.h device.h
 fsck.cpm.o: fsck.cpm.c config.h getopt_.h cpmdir.h cpmfs.h device.h
-fsed.cpm.o: fsed.cpm.c config.h cpmfs.h device.h
-getopt.o: getopt.c config.h getopt_.h getopt_int.h
+fsed.cpm.o: fsed.cpm.c config.h cpmfs.h device.h getopt_.h term.h
 getopt1.o: getopt1.c config.h getopt_.h getopt_int.h
+getopt.o: getopt.c config.h getopt_.h getopt_int.h
 mkfs.cpm.o: mkfs.cpm.c config.h getopt_.h cpmfs.h device.h
+term_curses.o: term_curses.c config.h term.h

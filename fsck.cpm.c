@@ -11,10 +11,6 @@
 #include "getopt_.h"
 #include "cpmdir.h"
 #include "cpmfs.h"
-
-#ifdef USE_DMALLOC
-#include <dmalloc.h>
-#endif
 /*}}}*/
 /* #defines */ /*{{{*/
 /* your favourite password *:-) */
@@ -240,7 +236,7 @@ static int fsck(struct cpmInode *root, const char *image)
       {
         int block,min,max,i;
 
-        min=(sb->maxdir*32+sb->blksiz-1)/sb->blksiz;
+        min=sb->dirblks;
         max=sb->size;
         for (i=0; i<16; ++i)
         {
