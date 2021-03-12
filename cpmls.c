@@ -178,7 +178,7 @@ static void old3dir(char **dirent, int entries, struct cpmInode *ino)
           totalRecs+=(statbuf.size+127)/128;
           printf(" %5.1ldk",(long) (statbuf.size+buf.f_bsize-1) /
 			buf.f_bsize*(buf.f_bsize/1024));
-          printf(" %6.1ld ",(long)(statbuf.size/128));
+          printf(" %6.1ld ",(long)((statbuf.size+127)/128));
           putchar((attrib & CPM_ATTR_F1)   ? '1' : ' ');
           putchar((attrib & CPM_ATTR_F2)   ? '2' : ' ');
           putchar((attrib & CPM_ATTR_F3)   ? '3' : ' ');          
