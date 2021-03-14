@@ -1750,7 +1750,7 @@ ssize_t cpmRead(struct cpmFile *file, char *buf, size_t count)
         else
         {
           start=(file->pos%blocksize)/file->ino->sb->secLength;
-          end=((file->pos%blocksize+(off_t)count)>blocksize ? blocksize-1 : (int)((file->pos%blocksize+count-1))/file->ino->sb->secLength);
+          end=((file->pos%blocksize+(off_t)count)>blocksize ? blocksize-1 : (int)(file->pos%blocksize+count-1))/file->ino->sb->secLength;
           if (readBlock(file->ino->sb,block,buffer,start,end)==-1)
           {
             if (got==0) got=-1;
